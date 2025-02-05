@@ -7,19 +7,23 @@ import (
 	"fyne.io/fyne/v2/app"
 	"fyne.io/fyne/v2/container"
 	"fyne.io/fyne/v2/dialog"
+	"fyne.io/fyne/v2/layout"
+	"fyne.io/fyne/v2/theme"
 	"fyne.io/fyne/v2/widget"
 )
 
 func main() {
 	a := app.New()
 	w := a.NewWindow("Extrator de PDF para XLSX")
-	w.Resize(fyne.NewSize(600, 500))
+	w.Resize(fyne.NewSize(500, 400))
 
 	fileIcon := widget.NewFileIcon(nil)
-	filePathURI := widget.NewLabel("...")
+	folderIcon := widget.NewIcon(theme.FolderIcon())
 
 	//* Arquivo de Origem
-	btnFile := widget.NewButton("Selecione o Arquivo", func() {
+	filePathURI := widget.NewLabel("...")
+	filePathURI.Resize(fyne.NewSize(100, filePathURI.MinSize().Height))
+	btnFile := widget.NewButton("Procurar", func() {
 		dialog.ShowFileOpen(func(reader fyne.URIReadCloser, err error) {
 			if err != nil {
 				dialog.NewError(err, w).Show()
@@ -32,11 +36,15 @@ func main() {
 
 		}, w)
 	})
-	filePath := container.NewHBox(fileIcon, filePathURI, btnFile)
+
+	v1 := container.NewVBox(
+		container.NewHBox(widget.NewLabel("Arquivo PDF:"), layout.NewSpacer(), btnFile),
+		container.NewHBox(fileIcon, filePathURI),
+	)
 
 	//* Local de destino
 	destFileURI := widget.NewLabel("...")
-	btnDestFile := widget.NewButton("Local de Destino", func() {
+	btnDestFile := widget.NewButton("Procurar", func() {
 		dialog.ShowFolderOpen(func(lu fyne.ListableURI, err error) {
 			if err != nil {
 				dialog.NewError(err, w).Show()
@@ -48,16 +56,47 @@ func main() {
 			}
 		}, w)
 	})
-	destPath := container.NewHBox(fileIcon, destFileURI, btnDestFile)
+
+	v2 := container.NewVBox(
+		container.NewHBox(widget.NewLabel("Local de Destino:"), layout.NewSpacer(), btnDestFile),
+		container.NewHBox(folderIcon, destFileURI),
+	)
+
+	progressBar := widget.NewProgressBarInfinite()
+	progressBar.Hide()
+	progressDesc := widget.NewLabel("Extraindo dados... Aguarde.")
+	progressDesc.Hide()
 
 	//* Botão Extrair
 	btnExtract := widget.NewButton("Extrair", func() {
-		if err := extract.Do(filePathURI.Text[7:], destFileURI.Text); err != nil {
-			dialog.NewError(err, w).Show()
-		}
+		progressBar.Show()
+		progressDesc.Show()
+
+		go func() {
+			if err := extract.Do(filePathURI.Text[7:], destFileURI.Text); err != nil {
+				dialog.NewError(err, w).Show()
+			}
+			progressBar.Hide()
+			progressDesc.Hide()
+			dialog.ShowInformation("Concluído", "Extração finalizada com sucesso!", w)
+		}()
 	})
 
-	box := container.NewVBox(filePath, destPath, btnExtract)
+	box := container.NewVBox(
+		container.NewPadded(v1),
+		container.NewPadded(widget.NewSeparator()),
+		container.NewPadded(v2),
+		container.NewPadded(widget.NewSeparator()),
+		container.NewHBox(layout.NewSpacer(), btnExtract, layout.NewSpacer()),
+		layout.NewSpacer(),
+		container.NewPadded(
+			container.NewVBox(
+				progressBar,
+				progressDesc,
+			),
+		),
+		layout.NewSpacer(),
+	)
 
 	w.SetContent(box)
 
